@@ -2,64 +2,78 @@ import React, { useEffect, useState } from 'react';
 import './App.css';
 import { Button, FormControl, InputLabel, Input } from '@material-ui/core'
 import Message from './Message';
-import db from './firebase';
-import firebase from 'firebase'
+
 import FlipMove from 'react-flip-move'
 import SendIcon from '@material-ui/icons/Send'
 import IconButton from '@material-ui/core/IconButton'
 import io from 'socket.io-client'
+import axios from './axios';
+
+
 
 const socket = io.connect("http://localhost:3001");
 
-function App() {
+function App()
+{
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState([])
   const [username, setUsername] = useState('')
 
-  // useEffect(() => {
-  //   db.collection('messages').orderBy('timestamp', 'desc').onSnapshot(snapshot => {
-  //     setMessages(snapshot.docs.map(doc => ({ id: doc.id, message: doc.data() })))
-  //   })
-  // }, [])
+  
+  
+
+  
+  useEffect(() =>
+  {
+    const sync = async () =>
+    {
+      console.log("axios")
+      await axios.get('/retreieve/conversation').then((res =>
+      {
+        setMessages(res.data);
+        console.log(res)
+      }))
+    }
+    sync()
+  }, [input])
+
+
 
   useEffect(() =>
   {
-    const fetchItems = async () =>
-    {
-      const items = await getItems();
-      setItems(items);
-    };
-    fetchItems();
-  }, []);
-
-  useEffect(() => {
     setUsername(prompt('Please enter your name'))
   }, [])
 
 
   useEffect(() =>
   {
+    console.log("this is receiving")
     socket.on("receive_message", (data) =>
     {
-      console.log("Received",data)
-      setMessages(data.input);
+      console.log("Received", data)
+      setMessages(prevMessages => [...prevMessages, data]);
       
+
     })
   }, [socket])
-  
-  const sendMessage = (e) => {
-    
-    // db.collection('messages').add({
-    //   message: input,
-    //   username: username,
-    //   timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    // })
 
-    
-    socket.emit("send_message", {input});
-    setInput('')
 
-  }
+  const sendMessage = async (e) =>
+  {
+    e.preventDefault();
+
+    const message = {
+      username: username,
+      message: input,
+      timestamp: Date.now()
+    };
+
+    socket.emit("send_message", message);
+
+    await axios.post('/save/message', message);
+
+    setInput('');
+  };
 
 
   return (
@@ -75,13 +89,13 @@ function App() {
           </IconButton>
         </FormControl>
       </form>
-      
+
       <FlipMove>
         {
-          messages.map(({ id, message }) => (
-            <Message key={id} message={message} username={username} />
-          ))          
-        }        
+          messages.map(message => (
+            <Message key={message._id} message={message} username={username} />
+          ))
+        }
       </FlipMove>
     </div>
   );
