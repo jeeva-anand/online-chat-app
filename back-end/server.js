@@ -1,64 +1,143 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const mongoose = require('mongoose');
-const cors = require('cors');
-
+const express = require("express");
 const app = express();
+const http = require("http");
+const { Server } = require("socket.io");
+const cors = require("cors");
+const mongoose = require('mongoose');
+const mongoMessages = require('./messageModel');
+
+
+
+
+// app config
 const server = http.createServer(app);
-const io = socketIo(server);
+
+const io = new Server(server, {
+    cors: {
+        origin: "http://localhost:3000",
+        methods: ["GET", "POST"],
+    },
+});
+
+io.on("connection", (socket) =>
+{
+    console.log(`User Connected: ${ socket.id }`);
+
+   
+    socket.on("send_message", (data) =>
+    {
+        console.log("send",data)
+        socket.broadcast.emit("receive_message", data);
+    }); 
+
+});
+
+// middlewares
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json())
 
-mongoose.connect('mongodb+srv://anand:Jeeva123*@anand.lmdo9sg.mongodb.net/?retryWrites=true&w=majority&appName=anand', { useNewUrlParser: true, useUnifiedTopology: true });
 
-const messageSchema = new mongoose.Schema({
-    sender: String,
-    receiver: String,
+    
+// db config
+
+const mongoURI = 'mongodb+srv://admin:KYQfxxjlOIcSpQVy@anand.lmdo9sg.mongodb.net/?retryWrites=true&w=majority&appName=anand'
+mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true });
+
+const db = mongoose.connection;
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', () =>
+{
+    console.log('Connected to MongoDB');
+});
+
+
+
+
+// api routes
+
+app.get('/',(req,res) => res.status(200).send('hello world'))
+
+// app.post('/save/message', (req, res) =>
+// {
+//     const dbMessage = req.body
+//     console.log(dbMessage)
+
+//     mongoMessages.create(dbMessage, (err) =>
+//     {
+//         if (err)
+//         {
+//             res.status(500).send(err)
+//         } else
+//         {
+//             res.status(201).send(err)
+//         }
+//     })
+
+// })
+
+
+const itemSchema = new mongoose.Schema({
+    username: String,
     message: String,
-    timestamp: { type: Date, default: Date.now },
-    status: { type: String, default: 'sent' }
+    timestamp: String
 });
 
-const Message = mongoose.model('Message', messageSchema);
+const Item = mongoose.model('Item', itemSchema);
 
-io.on('connection', (socket) =>
+app.post('/save/message', async (req, res) =>
 {
-    console.log('a user connected');
-
-    socket.on('join', ({ userId }) =>
+    console.log('logging.....')
+    try
     {
-        socket.join(userId);
-        socket.broadcast.emit('user-online', userId);
-    });
-
-    socket.on('send-message', async (messageData) =>
+        const newItem = new Item(req.body);
+        console.log(req.body)
+        await newItem.save();
+        res.status(201).json(newItem);
+    } catch (error)
     {
-        const message = new Message(messageData);
-        await message.save();
-        io.to(messageData.receiver).emit('receive-message', message);
-    });
-
-    socket.on('disconnect', () =>
-    {
-        console.log('user disconnected');
-    });
+        res.status(400).json({ message: error.message });
+    }
 });
 
-app.get('/messages/:sender/:receiver', async (req, res) =>
+app.get('/items', async (req, res) =>
 {
-    const { sender, receiver } = req.params;
-    const messages = await Message.find({
-        $or: [
-            { sender, receiver },
-            { sender: receiver, receiver: sender }
-        ]
-    }).sort('timestamp');
-    res.json(messages);
+    try
+    {
+        const items = await Item.find();
+        res.json(items);
+        console.log(items)
+    } catch (error)
+    {
+        res.status(500).json({ message: error.message });
+    }
 });
 
-server.listen(5000, () =>
+server.listen(3001, () =>
 {
-    console.log('listening on *:5000');
+    console.log("SERVER IS RUNNING");
 });
+
+
+
+
+// io.on('connection', (socket) =>
+// {
+//     console.log('a user connected');
+
+//     socket.on('join', ({ userId }) =>
+//     {
+//         socket.join(userId);
+//         socket.broadcast.emit('user-online', userId);
+//     });
+
+//     socket.on('send-message', async (messageData) =>
+//     {
+//         const message = new Message(messageData);
+//         await message.save();
+//         io.to(messageData.receiver).emit('receive-message', message);
+//     });
+
+//     
+// });
+

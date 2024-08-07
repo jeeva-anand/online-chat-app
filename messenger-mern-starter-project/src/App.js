@@ -7,37 +7,64 @@ import firebase from 'firebase'
 import FlipMove from 'react-flip-move'
 import SendIcon from '@material-ui/icons/Send'
 import IconButton from '@material-ui/core/IconButton'
+import io from 'socket.io-client'
+
+const socket = io.connect("http://localhost:3001");
 
 function App() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState([])
   const [username, setUsername] = useState('')
 
-  useEffect(() => {
-    db.collection('messages').orderBy('timestamp', 'desc').onSnapshot(snapshot => {
-      setMessages(snapshot.docs.map(doc => ({ id: doc.id, message: doc.data() })))
-    })
-  }, [])
+  // useEffect(() => {
+  //   db.collection('messages').orderBy('timestamp', 'desc').onSnapshot(snapshot => {
+  //     setMessages(snapshot.docs.map(doc => ({ id: doc.id, message: doc.data() })))
+  //   })
+  // }, [])
+
+  useEffect(() =>
+  {
+    const fetchItems = async () =>
+    {
+      const items = await getItems();
+      setItems(items);
+    };
+    fetchItems();
+  }, []);
 
   useEffect(() => {
     setUsername(prompt('Please enter your name'))
   }, [])
 
-  const sendMessage = (e) => {
-    e.preventDefault()
 
-    db.collection('messages').add({
-      message: input,
-      username: username,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  useEffect(() =>
+  {
+    socket.on("receive_message", (data) =>
+    {
+      console.log("Received",data)
+      setMessages(data.input);
+      
     })
+  }, [socket])
+  
+  const sendMessage = (e) => {
+    
+    // db.collection('messages').add({
+    //   message: input,
+    //   username: username,
+    //   timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    // })
 
+    
+    socket.emit("send_message", {input});
     setInput('')
+
   }
+
 
   return (
     <div className="App">
-      <img src="" alt="messenger logo" />
+      <img src="https://play.google.com/store/apps/details?id=world.mnetplus.talk.aos&hl=en_US" alt="messenger logo" />
       <h2>Welcome {username}</h2>
 
       <form className='app__form' >
@@ -48,13 +75,13 @@ function App() {
           </IconButton>
         </FormControl>
       </form>
-
+      
       <FlipMove>
         {
           messages.map(({ id, message }) => (
             <Message key={id} message={message} username={username} />
-          ))
-        }
+          ))          
+        }        
       </FlipMove>
     </div>
   );
