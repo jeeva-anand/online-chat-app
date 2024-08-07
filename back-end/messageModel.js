@@ -6,6 +6,8 @@ const messageSchema = mongoose.Schema({
     timestamp: String
 });
 
+const typeModel = mongoose.model('messages', messageSchema)
+module.exports = typeModel
 
-// export default mangoose.model('messages', messageSchema)
-module.exports = mongoose.model('messages', messageSchema);
+
+

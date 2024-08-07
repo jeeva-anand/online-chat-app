@@ -9,6 +9,13 @@ const mongoMessages = require('./messageModel');
 
 
 
+
+// middlewares
+
+app.use(express.json())
+app.use(cors());
+
+
 // app config
 const server = http.createServer(app);
 
@@ -26,16 +33,14 @@ io.on("connection", (socket) =>
    
     socket.on("send_message", (data) =>
     {
-        console.log("send",data)
+        console.log("send", data)
+        
         socket.broadcast.emit("receive_message", data);
     }); 
 
 });
 
-// middlewares
 
-app.use(cors());
-app.use(express.json())
 
 
     
@@ -58,53 +63,27 @@ db.once('open', () =>
 
 app.get('/',(req,res) => res.status(200).send('hello world'))
 
-// app.post('/save/message', (req, res) =>
-// {
-//     const dbMessage = req.body
-//     console.log(dbMessage)
-
-//     mongoMessages.create(dbMessage, (err) =>
-//     {
-//         if (err)
-//         {
-//             res.status(500).send(err)
-//         } else
-//         {
-//             res.status(201).send(err)
-//         }
-//     })
-
-// })
-
-
-const itemSchema = new mongoose.Schema({
-    username: String,
-    message: String,
-    timestamp: String
-});
-
-const Item = mongoose.model('Item', itemSchema);
 
 app.post('/save/message', async (req, res) =>
 {
-    console.log('logging.....')
     try
     {
-        const newItem = new Item(req.body);
-        console.log(req.body)
-        await newItem.save();
-        res.status(201).json(newItem);
+        console.log('Request body:', req.body); // Log the request body to verify
+        const newItem = new mongoMessages(req.body);
+        const savedItem = await newItem.save();
+        res.status(201).json(savedItem);
+        console.log(savedItem)
     } catch (error)
     {
         res.status(400).json({ message: error.message });
     }
 });
 
-app.get('/items', async (req, res) =>
+app.get('/retreieve/conversation', async (req, res) =>
 {
     try
     {
-        const items = await Item.find();
+        const items = await mongoMessages.find();
         res.json(items);
         console.log(items)
     } catch (error)
