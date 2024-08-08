@@ -15,50 +15,39 @@ const socket = io.connect("http://localhost:3001");
 
 function App()
 {
-  const [input, setInput] = useState('')
-  const [messages, setMessages] = useState([])
-  const [username, setUsername] = useState('')
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [username, setUsername] = useState('');
   const [onlineUsers, setOnlineUsers] = useState({});
 
-
-
-
+  const sync = async () =>
+  {
+    console.log("axios");
+    await axios.get('/retrieve/conversation').then(res =>
+    {
+      setMessages(res.data);
+    });
+  };
 
   useEffect(() =>
   {
-    const sync = async () =>
-    {
-      console.log("axios")
-      await axios.get('/retreieve/conversation').then((res =>
-      {
-        setMessages(res.data);
-        console.log(res)
-      }))
-    }
-    sync()
-  }, [input])
-
-
-
-  useEffect(() =>
-  {
-    let name = '';
-    while (!name)
-    {
-      name = prompt('Please enter your name');
-      if (name)
-      {
-        name = name.trim();
-      }
-    }
-    setUsername(name);
-    socket.emit('join', { username: name });
-    
+    sync();
   }, []);
 
+  useEffect(() =>
+  {
+    const name = prompt('Please enter your name');
+    setUsername(name);
+    socket.emit('join', { username: name });
+  }, []);
 
   useEffect(() =>
   {
+    socket.on('receive_message', (data) =>
+    {
+      console.log("Received", data);
+      setMessages(prevMessages => [...prevMessages, data]);
+    });
 
     socket.on('user_online', (data) =>
     {
@@ -66,12 +55,11 @@ function App()
       setOnlineUsers(prevUsers => ({ ...prevUsers, [data.username]: true }));
       console.log("Online users", onlineUsers)
     });
-    
-    socket.on("receive_message", (data) => {
-      
-      setMessages(prevMessages => [...prevMessages, data]);
 
-    })
+    socket.on('user_offline', (data) =>
+    {
+      setOnlineUsers(prevUsers => ({ ...prevUsers, [data.username]: false }));
+    });
 
     socket.on('message_edited', (data) =>
     {
@@ -85,9 +73,14 @@ function App()
       setMessages(prevMessages => prevMessages.filter(msg => msg._id !== data.id));
     });
 
+    socket.on('message_delivered', (data) =>
+    {
+      setMessages(prevMessages =>
+        prevMessages.map(msg => msg._id === data._id ? { ...msg, delivered: true } : msg)
+      );
+    });
 
-  }, [socket])
-
+  }, []);
 
   const sendMessage = async (e) =>
   {
@@ -97,44 +90,37 @@ function App()
       username: username,
       message: input,
       timestamp: Date.now(),
-      delivered: false,
+      delivered: false, 
       edited: false,
-      online: true
+      online: true 
     };
 
-    socket.emit("send_message", message);
+    socket.emit('send_message', message);
 
-    await axios.post('/save/message', message);
+    const response = await axios.post('/save/message', message);
+
+    // socket.emit('message_delivered', { id: response.data._id });
 
     setInput('');
+
   };
 
   const editMessage = async (id, newMessage) =>
   {
-
-    console.log(id, newMessage)
-
     socket.emit('edit_message', { id, message: newMessage, username });
-
     await axios.put(`/edit/message/${ id }`, { message: newMessage, username });
-
+    
   };
 
   const deleteMessage = async (id) =>
   {
-    
     socket.emit('delete_message', { id, username });
-    
     await axios.delete(`/delete/message/${ id }`, { data: { username } });
-
-    console.log("deleted")
   };
-
-
 
   return (
     <div className="App">
-      <img src="https://play.google.com/store/apps/details?id=world.mnetplus.talk.aos&hl=en_US" alt="messenger logo" />
+      <img src="https://static-00.iconduck.com/assets.00/chat-icon-2048x2048-i7er18st.png" style={{ width: "100px" }} alt="messenger logo" />
       <h2>Welcome {username}</h2>
 
       <form className='app__form' >
@@ -153,9 +139,9 @@ function App()
               key={message._id}
               message={message}
               username={username}
-              onEdit={editMessage}              
-              onDelete={deleteMessage}
               onlineStatus={onlineUsers[message.username]}
+              onEdit={editMessage}
+              onDelete={deleteMessage}
             />
           ))
         }
